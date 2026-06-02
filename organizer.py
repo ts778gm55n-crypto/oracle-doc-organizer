@@ -11,10 +11,10 @@ Folder structure created automatically:
       FCCS/ ARCS/ PBCS/ Free_Form/ Other/
     R12_ERP/
       AP/ AR/ GL/ CE/ AHCS_FAH/ PO/ Security/
-      Cost_Inventory/ Projects/ FA/ Other/
+      CST/ PA/ FA/ Other/
     Fusion_Cloud_ERP/
       AP/ AR/ GL/ CE/ AHCS_FAH/ PO/ Security/
-      Cost_Inventory/ Projects/ FA/ Other/
+      CST/ PA/ FA/ Other/
     Other/
       Data_Models/            <- SQL / data model files
       Other/                  <- unclassified
@@ -70,9 +70,9 @@ except ImportError:
 STRUCTURE = {
     "EPM":             ["FCCS", "ARCS", "PBCS", "Free_Form", "Other"],
     "R12_ERP":         ["P2P", "O2C", "R2R", "Security",
-                        "Cost_Inventory", "Projects", "FA", "Other"],
+                        "CST", "PA", "FA", "Other"],
     "Fusion_Cloud_ERP":["P2P", "O2C", "R2R", "Security",
-                        "Cost_Inventory", "Projects", "FA", "Other"],
+                        "CST", "PA", "FA", "Other"],
     "Other":           ["Data_Models", "Other"],
 }
 
@@ -117,10 +117,10 @@ MODULE_KEYWORDS = [
       "roles and setup", "role setup", r"\brbac\b", "security setup"], None, "Security"),
     (["cost management", "costing", "inventory valuation", "cost accounting",
       "cycle count", "physical inventory", "inventory count", "inventory guide",
-      "inventory", "stock", "item cost", "material cost"], None, "Cost_Inventory"),
+      "inventory", "stock", "item cost", "material cost"], None, "CST"),
     (["project accounting", "project costing", "project billing", "project planning",
       "project financ", "project perf", "project revenue", "ppm office",
-      "projectcost", "projectrev", "projectperf", "optimize.*project"], None, "Projects"),
+      "projectcost", "projectrev", "projectperf", "optimize.*project"], None, "PA"),
     (["fixed assets", "asset management", "depreciation", "asset book"], None, "FA"),
 ]
 
@@ -238,46 +238,113 @@ MAX_FILENAME = 100  # characters excluding extension
 
 # Words to shorten in titles (case-insensitive, longest phrases first)
 ABBREVIATIONS = [
-    # Phrases first (before individual words)
-    (r"\bBI Publisher\b",         "BIP"),
-    (r"\bProcure to Pay\b",       "P2P"),
-    (r"\bOrder to Cash\b",        "O2C"),
-    (r"\bRecord to Report\b",     "R2R"),
-    (r"\bAccounting Hub\b",       "AHCS"),
-    (r"\bSubledger Accounting\b", "SLA"),
-    (r"\bBest Practices\b",       "Best Prac"),
-    (r"\bWhite Paper\b",          "WP"),
-    # Individual words
-    (r"\bPayables\b",             "AP"),
-    (r"\bReceivables\b",          "AR"),
-    (r"\bSubledger\b",            "SLA"),
-    (r"\bConfiguration\b",        "Config"),
-    (r"\bConfigure\b",            "Config"),
-    (r"\bNotifications?\b",       "Notif"),
-    (r"\bImplementation\b",       "Impl"),
-    (r"\bProcurement\b",          "Proc"),
-    (r"\bManagement\b",           "Mgmt"),
-    (r"\bInformation\b",          "Info"),
-    (r"\bEnterprise\b",           "Ent"),
-    (r"\bStructures?\b",          "Struct"),
-    (r"\bPerformance\b",          "Perf"),
-    (r"\bFinancial\b",            "Fin"),
-    (r"\bAccounting\b",           "Acctg"),
-    (r"\bTroubleshooting\b",      "Troubleshoot"),
-    (r"\bPublisher\b",            "Pub"),
-    (r"\bTemplates?\b",           "Tmpl"),
-    (r"\bSolutions?\b",           "Soln"),
-    (r"\bOrganization\b",         "Org"),
-    (r"\bAuthorization\b",        "Auth"),
-    (r"\bAdministration\b",       "Admin"),
-    (r"\bApplication\b",          "App"),
-    (r"\bTransactions?\b",        "Txn"),
-    (r"\bReconciliation\b",       "Recon"),
-    (r"\bConsolidation\b",        "Consol"),
-    (r"\bDocuments?\b",           "Doc"),
-    (r"\bIntegration\b",          "Integ"),
-    (r"\bCustomization\b",        "Custom"),
-    (r"\bOverview\b",             "Overview"),
+    # Multi-word phrases first (must come before single-word matches)
+    (r"\bBI Publisher\b",                   "BIP"),
+    (r"\bProcure to Pay\b",                 "P2P"),
+    (r"\bOrder to Cash\b",                  "O2C"),
+    (r"\bRecord to Report\b",               "R2R"),
+    (r"\bAccounting Hub\b",                 "AHCS"),
+    (r"\bSubledger Accounting\b",           "SLA"),
+    (r"\bAccounts Payable\b",               "AP"),
+    (r"\bAccounts Receivable\b",            "AR"),
+    (r"\bGeneral Ledger\b",                 "GL"),
+    (r"\bChart of Accounts\b",              "COA"),
+    (r"\bCross Validation Rules?\b",        "CVR"),
+    (r"\bFixed Assets?\b",                  "FA"),
+    (r"\bJournal Entr(y|ies)\b",            "JE"),
+    (r"\bPurchase Orders?\b",               "PO"),
+    (r"\bSales Orders?\b",                  "SO"),
+    (r"\bWork Orders?\b",                   "WO"),
+    (r"\bWork in Process\b",                "WIP"),
+    (r"\bElectronic Funds Transfer\b",      "EFT"),
+    (r"\bElectronic Data Interchange\b",    "EDI"),
+    (r"\bMaterial Requirements Planning\b", "MRP"),
+    (r"\bBill of Materials\b",              "BOM"),
+    (r"\bCost of Goods Sold\b",             "COGS"),
+    (r"\bYear to Date\b",                   "YTD"),
+    (r"\bMonth to Date\b",                  "MTD"),
+    (r"\bQuarter to Date\b",                "QTD"),
+    (r"\bEnd of Month\b",                   "EOM"),
+    (r"\bUser Defined Codes?\b",            "UDC"),
+    (r"\bBusiness Units?\b",                "BU"),
+    (r"\bCost Centers?\b",                  "CC"),
+    (r"\bNet Book Value\b",                 "NBV"),
+    (r"\bValue Added Tax\b",                "VAT"),
+    (r"\bBest Practices\b",                 "Best Prac"),
+    (r"\bWhite Paper\b",                    "WP"),
+    (r"\bShop Floor Control\b",              "SFC"),
+    (r"\bWarehouse Management\b",           "WM"),
+    (r"\bQuality Management\b",             "QM"),
+    (r"\bHuman Resources?\b",               "HR"),
+    (r"\bThird Party Logistics\b",          "3PL"),
+    (r"\bAdvanced Planning and Scheduling\b", "APS"),
+    (r"\bAssemble to Order\b",              "ATO"),
+    (r"\bAvailable to Promise\b",           "ATP"),
+    (r"\bBusiness to Business\b",           "B2B"),
+    (r"\bBusiness to Consumer\b",           "B2C"),
+    (r"\bBusiness Intelligence\b",          "BI"),
+    (r"\bBill of Lading\b",                 "BOL"),
+    (r"\bConfigure Price Quote\b",          "CPQ"),
+    (r"\bCustomer Relationship Management\b", "CRM"),
+    (r"\bCapacity Requirements Planning\b", "CRP"),
+    (r"\bConfigure to Order\b",             "CTO"),
+    (r"\bEngineer to Order\b",              "ETO"),
+    (r"\bFirst In[,]? First Out\b",         "FIFO"),
+    (r"\bFree on Board\b",                  "FOB"),
+    (r"\bJust[- ]in[- ]Time\b",             "JIT"),
+    (r"\bKey Performance Indicators?\b",    "KPI"),
+    (r"\bLast In[,]? First Out\b",          "LIFO"),
+    (r"\bMaster Production Schedule\b",     "MPS"),
+    (r"\bMake to Order\b",                  "MTO"),
+    (r"\bMake to Stock\b",                  "MTS"),
+    (r"\bReturn Material Authorization\b",  "RMA"),
+    (r"\bSupply Chain Management\b",        "SCM"),
+    (r"\bUser Defined Fields?\b",           "UDF"),
+    (r"\bUnit of Measure\b",                "UOM"),
+    (r"\bEnterprise Resource Planning\b",   "ERP"),
+    # Single words
+    (r"\bPayables\b",                       "AP"),
+    (r"\bReceivables\b",                    "AR"),
+    (r"\bSubledger\b",                      "SBL"),
+    (r"\bProcurement\b",                    "Proc"),
+    (r"\bConfiguration\b",                  "Config"),
+    (r"\bConfigure\b",                      "Config"),
+    (r"\bNotifications?\b",                 "Notif"),
+    (r"\bImplementation\b",                 "Impl"),
+    (r"\bManagement\b",                     "Mgmt"),
+    (r"\bInformation\b",                    "Info"),
+    (r"\bEnterprise\b",                     "Ent"),
+    (r"\bStructures?\b",                    "Struct"),
+    (r"\bPerformance\b",                    "Perf"),
+    (r"\bFinancial\b",                      "Fin"),
+    (r"\bAccounting\b",                     "Acctg"),
+    (r"\bTroubleshooting\b",               "Troubleshoot"),
+    (r"\bPublisher\b",                      "Pub"),
+    (r"\bTemplates?\b",                     "Tmpl"),
+    (r"\bSolutions?\b",                     "Soln"),
+    (r"\bOrganization\b",                   "Org"),
+    (r"\bAuthorization\b",                  "Auth"),
+    (r"\bAdministration\b",                 "Admin"),
+    (r"\bApplication\b",                    "App"),
+    (r"\bTransactions?\b",                  "Txn"),
+    (r"\bReconciliation\b",                 "Recon"),
+    (r"\bConsolidation\b",                  "Consol"),
+    (r"\bDocuments?\b",                     "Doc"),
+    (r"\bIntegration\b",                    "Integ"),
+    (r"\bCustomization\b",                  "Custom"),
+    (r"\bInventory\b",                      "Inv"),
+    (r"\bInvoices?\b",                      "Inv"),
+    (r"\bDistribution\b",                   "Dist"),
+    (r"\bRequirements?\b",                  "Req"),
+    (r"\bSpecifications?\b",                "Spec"),
+    (r"\bDepartment\b",                     "Dept"),
+    (r"\bReference\b",                      "Ref"),
+    (r"\bSequence\b",                       "Seq"),
+    (r"\bQuantity\b",                       "Qty"),
+    (r"\bAmount\b",                         "Amt"),
+    (r"\bApproval\b",                       "Apprvl"),
+    (r"\bProcessing\b",                     "Proc"),
+    (r"\bOverview\b",                       "Overview"),
 ]
 
 
@@ -336,8 +403,8 @@ def build_filename(path: Path, top: str, sub: str, haystack: str = "") -> str:
     stem = path.stem
     # strip previously applied prefixes — handle both _ and space separators
     sep = r"[\s_]+"
-    stem = re.sub(r"^(?:OFC" + sep + r")?(?:AP_PO|P2P|O2C|R2R|GL|FA|AHCS_FAH|AHCS|Security|Cost_Inventory|Projects)" + sep + r"(?:Fusion|R12|EPM|R11i)" + sep, "", stem, flags=re.IGNORECASE)
-    stem = re.sub(r"^(?:AP_PO|P2P|O2C|R2R|GL|FA|AHCS_FAH|AHCS|Security|Cost_Inventory|Projects)" + sep, "", stem, flags=re.IGNORECASE)
+    stem = re.sub(r"^(?:OFC" + sep + r")?(?:AP_PO|P2P|O2C|R2R|GL|FA|AHCS_FAH|AHCS|Security|CST|PA)" + sep + r"(?:Fusion|R12|EPM|R11i)" + sep, "", stem, flags=re.IGNORECASE)
+    stem = re.sub(r"^(?:AP_PO|P2P|O2C|R2R|GL|FA|AHCS_FAH|AHCS|Security|CST|PA)" + sep, "", stem, flags=re.IGNORECASE)
     # strip trailing duplicate dates like _2024-01-01 or space-2024-01-01
     stem = re.sub(r"[\s_]\d{4}[\s\-]\d{2}[\s\-]\d{2}$", "", stem)
     stem = re.sub(r"[\s_]\d{4}-\d{2}-\d{2}$", "", stem)
