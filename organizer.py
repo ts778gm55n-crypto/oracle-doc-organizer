@@ -70,15 +70,21 @@ except ImportError:
 STRUCTURE = {
     "EPM":             ["FCCS", "ARCS", "PBCS", "Free_Form", "Other"],
     "R12_ERP":         ["P2P", "O2C", "R2R", "Security",
-                        "CST", "PA", "FA", "Other"],
+                        "CST", "PA", "FA", "eTax", "HMRC", "Other"],
     "Fusion_Cloud_ERP":["P2P", "O2C", "R2R", "Security",
-                        "CST", "PA", "FA", "Other"],
+                        "CST", "PA", "FA", "eTax", "HMRC", "Other"],
+    "FDI":             ["ERP", "HCM", "SCM", "CX", "EPM", "Other"],
     "Other":           ["Data_Models", "Other"],
 }
 
 # Keywords that map to (top_folder, sub_folder)
 # Checked against filename + first ~2000 chars of content (case-insensitive)
 MODULE_KEYWORDS = [
+    # FDI — Oracle Fusion Data Intelligence (must come before ERP/EPM rules)
+    (["fusion data intelligence", r"\bfdi\b", "data intelligence platform",
+      "fdr tables", "semantic model lineage", "metric calculation logic",
+      "data augmentation scripts", "fusion analytics"], "FDI", None),
+
     # EPM products
     (["fccs", "financial consolidation", "close cloud"], "EPM", "FCCS"),
     (["arcs", "account reconciliation"], "EPM", "ARCS"),
@@ -86,6 +92,20 @@ MODULE_KEYWORDS = [
     (["free form", "freeform", "free-form"], "EPM", "Free_Form"),
 
     # ERP modules — version detected separately
+    # HMRC — HR, Payroll, Workforce
+    (["payroll", "workforce", "human resources", r"\bhr\b", r"\bhcm\b",
+      "benefits guide", "labor distribution", "employee", "workforce deployment",
+      "workforce development", "payroll interface", "compensation",
+      "absence management", "talent management", "time and labor"], None, "HMRC"),
+
+    # eTax — tax docs not clearly tied to P2P or O2C
+    # Only catches docs where tax is the primary topic with no AP/PO/AR/Order context
+    (["tax regime", "tax rule", "tax configuration", "tax setup", "tax classification",
+      "fiscal classification", "tax exemption", "withholding tax setup",
+      "tax determination", r"\betax\b", "e-tax", "transaction tax",
+      "tax overview", "tax framework", "tax reporting", r"\btrx tax\b",
+      "tax rate", "tax code setup", "tax authority", "configuring tax"], None, "eTax"),
+
     # P2P — Procure to Pay: AP, PO, Procurement, AP-related Cash Management
     (["accounts payable", "payables", "invoice approval", "invoice processing",
       "supplier invoice", "supplier payment", "supplier site", "supplier bank",
@@ -217,6 +237,31 @@ def classify(path: Path, content: str) -> tuple[str, str]:
         return "Other", "Other"
 
     top_hint, module = matched_module
+
+    # eTax — check if tax doc has P2P or O2C context; if so, send there instead
+    if module == "eTax":
+        p2p_tax = ["accounts payable", "payables", "supplier", "purchase order",
+                   r"\bpo\b", "procurement", "withholding tax", "ap tax"]
+        o2c_tax = ["accounts receivable", "customer", "sales order", "order to cash",
+                   "billing", "revenue", r"\bar\b"]
+        if any(re.search(k, haystack) for k in p2p_tax):
+            module = "P2P"
+        elif any(re.search(k, haystack) for k in o2c_tax):
+            module = "O2C"
+
+    # FDI — detect subfolder from filename/content
+    if top_hint == "FDI":
+        if re.search(r"\b(erp|fin|gl|ap|ar|p2p|r2r)\b", haystack):
+            return "FDI", "ERP"
+        if re.search(r"\b(hcm|hr|workforce|payroll)\b", haystack):
+            return "FDI", "HCM"
+        if re.search(r"\b(scm|supply chain|inventory|warehouse)\b", haystack):
+            return "FDI", "SCM"
+        if re.search(r"\b(cx|customer experience|sales|service)\b", haystack):
+            return "FDI", "CX"
+        if re.search(r"\b(epm|planning|budgeting|fccs|pbcs)\b", haystack):
+            return "FDI", "EPM"
+        return "FDI", "Other"
 
     # EPM modules always go under EPM
     if top_hint == "EPM":
@@ -387,6 +432,7 @@ def build_filename(path: Path, top: str, sub: str, haystack: str = "") -> str:
         "R12_ERP":          "R12",
         "Fusion_Cloud_ERP": "Fusion",
         "EPM":              "EPM",
+        "FDI":              "FDI",
         "Other":            "",
     }.get(top, "")
 
@@ -403,8 +449,8 @@ def build_filename(path: Path, top: str, sub: str, haystack: str = "") -> str:
     stem = path.stem
     # strip previously applied prefixes — handle both _ and space separators
     sep = r"[\s_]+"
-    stem = re.sub(r"^(?:OFC" + sep + r")?(?:AP_PO|P2P|O2C|R2R|GL|FA|AHCS_FAH|AHCS|Security|CST|PA)" + sep + r"(?:Fusion|R12|EPM|R11i)" + sep, "", stem, flags=re.IGNORECASE)
-    stem = re.sub(r"^(?:AP_PO|P2P|O2C|R2R|GL|FA|AHCS_FAH|AHCS|Security|CST|PA)" + sep, "", stem, flags=re.IGNORECASE)
+    stem = re.sub(r"^(?:OFC" + sep + r")?(?:AP_PO|P2P|O2C|R2R|GL|FA|AHCS_FAH|AHCS|Security|CST|PA|eTax|HMRC)" + sep + r"(?:Fusion|R12|EPM|R11i)" + sep, "", stem, flags=re.IGNORECASE)
+    stem = re.sub(r"^(?:AP_PO|P2P|O2C|R2R|GL|FA|AHCS_FAH|AHCS|Security|CST|PA|eTax|HMRC)" + sep, "", stem, flags=re.IGNORECASE)
     # strip trailing duplicate dates like _2024-01-01 or space-2024-01-01
     stem = re.sub(r"[\s_]\d{4}[\s\-]\d{2}[\s\-]\d{2}$", "", stem)
     stem = re.sub(r"[\s_]\d{4}-\d{2}-\d{2}$", "", stem)
@@ -471,12 +517,21 @@ def process_inbox(root: Path, dry_run: bool):
             dest = dest_dir / f"{stem}{path.suffix.lower()}"
             counter += 1
 
+        backup_dir  = root / "_Backup" / top / sub
+        backup_dest = backup_dir / dest.name
+
         print(f"    -> {top}/{sub}/{dest.name}")
         log_lines.append(f"{rel}  ->  {top}/{sub}/{dest.name}")
 
         if not dry_run:
-            dest_dir.mkdir(parents=True, exist_ok=True)
-            shutil.move(str(path), str(dest))
+            try:
+                dest_dir.mkdir(parents=True, exist_ok=True)
+                backup_dir.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(str(path), str(backup_dest))  # backup first
+                shutil.move(str(path), str(dest))           # then move
+            except PermissionError:
+                print(f"    [SKIPPED] File locked (OneDrive syncing or open): {path.name}")
+                log_lines.append(f"SKIPPED (locked): {rel}")
 
     # delete empty folders left behind in inbox
     if not dry_run:
@@ -503,6 +558,7 @@ def setup_folders(root: Path):
         for sub in subs:
             (root / top / sub).mkdir(parents=True, exist_ok=True)
     (root / "_Inbox").mkdir(exist_ok=True)
+    (root / "_Backup").mkdir(exist_ok=True)
     print(f"Folder structure ready at: {root}")
 
 
