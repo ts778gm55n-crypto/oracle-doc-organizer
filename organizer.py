@@ -31,6 +31,7 @@ Dependencies:
 """
 
 import argparse
+import hashlib
 import logging
 import re
 import shutil
@@ -471,6 +472,27 @@ def build_filename(path: Path, top: str, sub: str, haystack: str = "") -> str:
 
 # ── move logic ────────────────────────────────────────────────────────────────
 
+def _file_hash(path: Path) -> str:
+    """Return MD5 hash of file contents for duplicate detection."""
+    h = hashlib.md5()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(65536), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def _build_hash_index(root: Path, inbox: Path) -> dict:
+    """Build a hash → path index of all files already in the destination folders."""
+    index = {}
+    for path in root.rglob("*"):
+        if path.is_file() and not path.is_relative_to(inbox) and path.suffix.lower() != ".txt":
+            try:
+                index[_file_hash(path)] = path
+            except Exception:
+                pass
+    return index
+
+
 def _delete_empty_dirs(folder: Path):
     """Recursively delete empty directories bottom-up inside folder."""
     for dirpath in sorted(folder.rglob("*"), reverse=True):
@@ -498,6 +520,11 @@ def process_inbox(root: Path, dry_run: bool):
     log_lines = []
     print(f"{'DRY RUN -- ' if dry_run else ''}Processing {len(files)} file(s) from _Inbox (incl. subfolders)\n")
 
+    # build hash index of files already in destination folders
+    print("  Building duplicate index...")
+    hash_index = _build_hash_index(root, inbox)
+    print(f"  {len(hash_index)} existing files indexed.\n")
+
     for path in sorted(files):
         # show relative path from inbox so subfolder context is visible
         rel = path.relative_to(inbox)
@@ -510,15 +537,29 @@ def process_inbox(root: Path, dry_run: bool):
         dest_dir = root / top / sub
         dest     = dest_dir / new_name
 
-        # avoid collisions
-        counter = 1
-        while dest.exists():
-            stem = f"{Path(new_name).stem} {counter}"
-            dest = dest_dir / f"{stem}{path.suffix.lower()}"
-            counter += 1
+        # duplicate check — hash the incoming file
+        try:
+            incoming_hash = _file_hash(path)
+        except PermissionError:
+            print(f"    [SKIPPED] File locked (OneDrive syncing or open): {path.name}")
+            log_lines.append(f"SKIPPED (locked): {rel}")
+            continue
 
-        backup_dir  = root / "_Backup" / top / sub
-        backup_dest = backup_dir / dest.name
+        if incoming_hash in hash_index:
+            existing = hash_index[incoming_hash]
+            print(f"    [DUPLICATE] Already exists as: {existing.relative_to(root)}")
+            log_lines.append(f"DUPLICATE: {rel}  ==  {existing.relative_to(root)}")
+            if not dry_run:
+                dup_dir = root / "_Duplicates"
+                dup_dir.mkdir(exist_ok=True)
+                dup_dest = dup_dir / path.name
+                # avoid overwriting in _Duplicates
+                counter = 1
+                while dup_dest.exists():
+                    dup_dest = dup_dir / f"{path.stem} {counter}{path.suffix.lower()}"
+                    counter += 1
+                shutil.move(str(path), str(dup_dest))
+            continue
 
         print(f"    -> {top}/{sub}/{dest.name}")
         log_lines.append(f"{rel}  ->  {top}/{sub}/{dest.name}")
@@ -526,9 +567,8 @@ def process_inbox(root: Path, dry_run: bool):
         if not dry_run:
             try:
                 dest_dir.mkdir(parents=True, exist_ok=True)
-                backup_dir.mkdir(parents=True, exist_ok=True)
-                shutil.copy2(str(path), str(backup_dest))  # backup first
-                shutil.move(str(path), str(dest))           # then move
+                shutil.move(str(path), str(dest))
+                hash_index[incoming_hash] = dest  # update index with newly moved file
             except PermissionError:
                 print(f"    [SKIPPED] File locked (OneDrive syncing or open): {path.name}")
                 log_lines.append(f"SKIPPED (locked): {rel}")
@@ -558,7 +598,6 @@ def setup_folders(root: Path):
         for sub in subs:
             (root / top / sub).mkdir(parents=True, exist_ok=True)
     (root / "_Inbox").mkdir(exist_ok=True)
-    (root / "_Backup").mkdir(exist_ok=True)
     print(f"Folder structure ready at: {root}")
 
 
