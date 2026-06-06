@@ -124,7 +124,8 @@ MODULE_KEYWORDS = [
       "business unit.*scm", "scm.*procurement",
       "cash management", "bank reconciliation", "bank statement", "bank account",
       "external bank", "payments overview", "cash mgt", "automatic reconciliation",
-      "roles.*po", "setups.*po", "enterprise structure.*erp", "erp.*enterprise structure"], None, "P2P"),
+      "roles.*po", "setups.*po", "enterprise structure.*erp", "erp.*enterprise structure",
+      "self service receipt", "selfservice receipt", "self-service receipt"], None, "P2P"),
     # O2C — Order to Cash: AR, Order Entry, Order Management, Cash receipts
     (["accounts receivable", "order to cash", r"\bo2c\b", "order entry",
       "order management", "customer receipt", "cash receipt",
