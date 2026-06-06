@@ -144,7 +144,9 @@ MODULE_KEYWORDS = [
       "subledger accounting", r"\bsla\b", "subledger", "record to report",
       r"\br2r\b", "period close", "intercompany", "consolidat",
       "gl period", "accounting period", "trial balance",
-      "gl translation", "currency revaluation", "revaluation"], None, "R2R"),
+      "gl translation", "currency revaluation", "revaluation",
+      "values and hierarchies", "segment values and hierarchies",
+      "gl values", "gl hierarchies"], None, "R2R"),
     (["user role", "responsibility", "access control", "profile option", "system admin",
       "roles and setup", "role setup", r"\brbac\b", "security setup",
       r"\broles\b", r"\busers\b", "user management", "user access",
@@ -740,7 +742,8 @@ def _r2r_module_tag(haystack: str) -> str:
                                       "smartview", "essbase", "segment", "hierarchy",
                                       "value set", "flexfield", "account combination",
                                       "trial balance", "gl translation", "revaluation",
-                                      "accounting period", "period close"]):
+                                      "accounting period", "period close",
+                                      "values and hierarchies", "gl values", "gl hierarchies"]):
         return "GL"
     return "Other"
 
