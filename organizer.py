@@ -76,7 +76,7 @@ STRUCTURE = {
     "Fusion_Cloud_ERP":["P2P", "O2C", "R2R", "Security",
                         "CST", "PA", "FA", "eTax", "HMRC", "Other"],
     "FDI":             ["ERP", "HCM", "SCM", "CX", "EPM", "Other"],
-    "Other":           ["Data_Models", "Other"],
+    "Other":           ["Data_Models", "Unclassified"],
 }
 
 # Keywords that map to (top_folder, sub_folder)
@@ -385,7 +385,7 @@ def extract_title(path: Path, module: str = "", version: str = "") -> str:
     if not title:
         stem = path.stem
         sep = r"[\s_]+"
-        all_modules = r"(?:AP_PO|P2P|O2C|R2R|GL|COA|CVR|SLA|AHCS|FAH|FA|Security|CST|PA|eTax|HMRC|FDI|FCCS|ARCS|PBCS)"
+        all_modules = r"(?:AP_PO|P2P|O2C|R2R|GL|COA|CVR|SLA|AHCS|FAH|FA|Security|CST|PA|eTax|HMRC|FDI|FCCS|ARCS|PBCS|Unclassified)"
         all_versions = r"(?:Fusion|R12|EPM|R11i|FDI)"
         for _ in range(3):
             stem = re.sub(r"^(?:OFC" + sep + r")?" + all_modules + sep + all_versions + sep, "", stem, flags=re.IGNORECASE)
@@ -473,7 +473,7 @@ def classify(path: Path, content: str) -> tuple[str, str]:
             break
 
     if not matched_module:
-        return "Other", "Other"
+        return "Other", "Unclassified"
 
     top_hint, module = matched_module
 
@@ -689,7 +689,7 @@ def build_filename(path: Path, top: str, sub: str, haystack: str = "") -> str:
         if module_tag == "Other":
             module_tag = "R2R"
     else:
-        module_tag = sub if sub not in ("Other", "Data_Models") else ""
+        module_tag = sub if sub not in ("Other", "Data_Models", "Unclassified") else ""
 
     # file creation/modification date
     mtime = datetime.fromtimestamp(path.stat().st_mtime).strftime("%Y-%m-%d")
@@ -745,7 +745,8 @@ def _delete_empty_dirs(folder: Path):
 
 
 def process_inbox(root: Path, dry_run: bool):
-    inbox = root / "_Inbox"
+    # support both _Inbox and INBOX folder names
+    inbox = root / "INBOX" if (root / "INBOX").exists() else root / "_Inbox"
     if not inbox.exists():
         inbox.mkdir(parents=True)
         print(f"Created _Inbox at {inbox} -- add files there and re-run.")
