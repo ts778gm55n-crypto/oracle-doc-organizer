@@ -834,6 +834,15 @@ def process_inbox(root: Path, dry_run: bool):
     # recursively find all supported files in inbox and subfolders
     files = [f for f in inbox.rglob("*") if f.is_file() and f.suffix.lower() in ALL_EXTENSIONS]
 
+    # also scan Other/Unclassified so previously unclassified files get retried
+    unclassified_dir = root / "Other" / "Unclassified"
+    if unclassified_dir.exists():
+        unclassified_files = [f for f in unclassified_dir.rglob("*")
+                              if f.is_file() and f.suffix.lower() in ALL_EXTENSIONS]
+        if unclassified_files:
+            print(f"  Also scanning Other/Unclassified ({len(unclassified_files)} file(s))...")
+            files = list(files) + unclassified_files
+
     if not files:
         print(f"No supported files found in {inbox}")
         return
@@ -847,8 +856,11 @@ def process_inbox(root: Path, dry_run: bool):
     print(f"  {len(hash_index)} existing files indexed.\n")
 
     for path in sorted(files):
-        # show relative path from inbox so subfolder context is visible
-        rel = path.relative_to(inbox)
+        # show relative path from root so source folder is visible
+        try:
+            rel = path.relative_to(inbox)
+        except ValueError:
+            rel = path.relative_to(root)
         print(f"  {rel}")
         content  = extract_text(path)
         top, sub = classify(path, content)
