@@ -72,9 +72,9 @@ except ImportError:
 STRUCTURE = {
     "EPM":             ["FCCS", "ARCS", "PBCS", "Free_Form", "Other"],
     "R12_ERP":         ["P2P", "O2C", "R2R", "Security",
-                        "CST", "PA", "FA", "eTax", "HMRC", "Other"],
+                        "CST", "PA", "FA", "eTax", "HMRC", "BIP_Reports", "Other"],
     "Fusion_Cloud_ERP":["P2P", "O2C", "R2R", "Security",
-                        "CST", "PA", "FA", "eTax", "HMRC", "Other"],
+                        "CST", "PA", "FA", "eTax", "HMRC", "BIP_Reports", "Other"],
     "FDI":             ["ERP", "HCM", "SCM", "CX", "EPM", "Other"],
     "Other":           ["Data_Models", "Unclassified"],
 }
@@ -147,6 +147,12 @@ MODULE_KEYWORDS = [
       "project financ", "project perf", "project revenue", "ppm office",
       "projectcost", "projectrev", "projectperf", "optimize.*project"], None, "PA"),
     (["fixed assets", "asset management", "depreciation", "asset book"], None, "FA"),
+    # BIP Reports — BI, OTBI, BIP docs not tied to a specific module
+    (["business intelligence", r"\bbip\b", r"\botbi\b", "bi report", "bi publisher",
+      "oracle analytics", "analytics report", "report design", "data model",
+      "bursting", "rtf template", "xsl template", "bi query",
+      "oracle transactional business intelligence", "fusion analytics",
+      "bi cloud", "bi catalog", "subject area", "obiee"], None, "BIP_Reports"),
 ]
 
 VERSION_KEYWORDS = {
@@ -390,7 +396,7 @@ def extract_title(path: Path, module: str = "", version: str = "") -> str:
     if not title:
         stem = path.stem
         sep = r"[\s_]+"
-        all_modules = r"(?:AP_PO|P2P|O2C|R2R|GL|COA|CVR|SLA|AHCS|FAH|FA|Security|CST|PA|eTax|HMRC|FDI|FCCS|ARCS|PBCS|Unclassified)"
+        all_modules = r"(?:AP_PO|P2P|O2C|R2R|GL|COA|CVR|SLA|AHCS|FAH|FA|Security|CST|PA|eTax|HMRC|BIP_Reports|FDI|FCCS|ARCS|PBCS|Unclassified)"
         all_versions = r"(?:Fusion|R12|EPM|R11i|FDI)"
         for _ in range(3):
             stem = re.sub(r"^(?:OFC" + sep + r")?" + all_modules + sep + all_versions + sep, "", stem, flags=re.IGNORECASE)
