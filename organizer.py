@@ -421,11 +421,15 @@ def extract_title(path: Path, module: str = "", version: str = "") -> str:
     if not title:
         stem = path.stem
         sep = r"[\s_]+"
-        all_modules = r"(?:AP_PO|P2P|O2C|R2R|GL|COA|CVR|SLA|AHCS|FAH|FA|Security|CST|PA|eTax|HMRC|BIP_Reports|FDI|FCCS|ARCS|PBCS|Unclassified)"
-        all_versions = r"(?:Fusion|R12|EPM|R11i|FDI)"
-        for _ in range(3):
+        all_modules = r"(?:AP_PO|P2P|O2C|R2R|GL|COA|CVR|SLA|AHCS|FAH|FA|Security|CST|PA|eTax|HMRC|BIP.?Reports|FDI|FCCS|ARCS|PBCS|Unclassified|CX|HCM|SCM)"
+        all_versions = r"(?:Fusion|R12|R11i|EPM|FDI)"
+        # strip repeatedly to handle accumulated prefixes from multiple runs
+        for _ in range(6):
+            prev = stem
             stem = re.sub(r"^(?:OFC" + sep + r")?" + all_modules + sep + all_versions + sep, "", stem, flags=re.IGNORECASE)
             stem = re.sub(r"^(?:OFC" + sep + r")?" + all_modules + sep, "", stem, flags=re.IGNORECASE)
+            if stem == prev:
+                break
         stem = re.sub(r"[\s_]\d{4}[\s\-_]\d{2}[\s\-_]\d{2}(\s+\d+)?$", "", stem)
         stem = re.sub(r"[\s_\-]+", " ", stem).strip()
         title = stem
