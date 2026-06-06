@@ -789,7 +789,7 @@ def _build_hash_index(root: Path, inbox: Path) -> dict:
     """Build a hash → path index of all files already in the destination folders."""
     index = {}
     for path in root.rglob("*"):
-        if path.is_file() and not path.is_relative_to(inbox) and path.suffix.lower() != ".txt":
+        if path.is_file() and str(inbox) not in str(path) and path.suffix.lower() != ".txt":
             try:
                 index[_file_hash(path)] = path
             except Exception:
