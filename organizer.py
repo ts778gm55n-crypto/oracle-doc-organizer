@@ -66,6 +66,7 @@ except ImportError:
     HAS_RTF = False
 
 
+
 # ── folder / classification map ───────────────────────────────────────────────
 
 STRUCTURE = {
@@ -157,7 +158,244 @@ DOC_EXTENSIONS  = {".pdf", ".docx", ".doc", ".txt", ".rtf", ".xlsx", ".xls"}
 ALL_EXTENSIONS  = SQL_EXTENSIONS | DOC_EXTENSIONS
 
 
-# ── text extraction ───────────────────────────────────────────────────────────
+# ── text extraction & title detection ────────────────────────────────────────
+
+# Boilerplate patterns to reject as titles
+_BOILERPLATE = re.compile(
+    r"(table of contents|how to use|powerpoint presentation|audio for|"
+    r"zoom|webcast will|copyright|all rights reserved|oracle confidential|"
+    r"safe harbor|document display|doc display|http[s]?://|www\.|"
+    r"support\.oracle|slide \d+|page \d+|\d+ of \d+|^\d+$|"
+    r"oracle corporation|click here|presented by|agenda|introduction|"
+    r"note there is no|separate dial|applies to|goal|solution|references|"
+    r"symptoms|changes|cause|select yes when|prompted to join|placed on hold|"
+    r"live webcast|join the audio|computer speakers|dial.in number|"
+    r"questions will be taken|q&a|qanda|via the q|replay and the|"
+    r"dashboard knowledge|service requests|patches.*updates|community|"
+    r"session using|functionality\.|^january|^february|^march|^april|^may|"
+    r"^june|^july|^august|^september|^october|^november|^december|"
+    r"^microsoft|^q\d|^\d{4}$|\.pptx$|\.docx$|\.xlsx$|\.pdf$|"
+    r"pillar.*fa code|functional area tables)",
+    re.IGNORECASE
+)
+
+
+def _is_good_title(text: str) -> bool:
+    """Return True if text is a plausible document title."""
+    text = text.strip()
+    if len(text) < 6 or len(text) > 160:
+        return False
+    if _BOILERPLATE.search(text):
+        return False
+    alpha = sum(c.isalpha() for c in text)
+    if alpha < len(text) * 0.45:
+        return False
+    return True
+
+
+def _pdf_title_by_font(path: Path) -> str:
+    """
+    Find the title of a PDF by:
+    1. Metadata title (strip Microsoft PowerPoint / Word prefixes)
+    2. Largest font text in the top 50% of page 1
+    3. First good text line on page 1
+    """
+    try:
+        with pdfplumber.open(path) as pdf:
+            # 1. metadata title — strip common app prefixes
+            meta = pdf.metadata or {}
+            meta_title = (meta.get("Title") or "").strip()
+            meta_title = re.sub(r"^(Microsoft (PowerPoint|Word|Excel)\s*[-–]?\s*)", "", meta_title, flags=re.IGNORECASE).strip()
+            if _is_good_title(meta_title):
+                return meta_title
+
+            if not pdf.pages:
+                return ""
+
+            page = pdf.pages[0]
+            page_height = page.height or 1
+
+            # 2. largest font in TOP 50% of page (where titles live)
+            chars = [c for c in (page.chars or []) if float(c.get("top", page_height)) < page_height * 0.55]
+            if chars:
+                from collections import defaultdict
+                by_size = defaultdict(list)
+                for ch in chars:
+                    size = round(float(ch.get("size", 0)), 1)
+                    by_size[size].append(ch)
+
+                for size in sorted(by_size.keys(), reverse=True):
+                    # group chars into lines by vertical position (within 3pt)
+                    size_chars = sorted(by_size[size], key=lambda c: (round(float(c["top"]) / 3), c["x0"]))
+                    from itertools import groupby
+                    for _, grp in groupby(size_chars, key=lambda c: round(float(c["top"]) / 3)):
+                        line = "".join(c["text"] for c in grp).strip()
+                        if _is_good_title(line):
+                            return line
+
+            # 3. fallback: scan all text lines on page 1
+            page_text = page.extract_text() or ""
+            for line in page_text.splitlines():
+                line = line.strip()
+                if _is_good_title(line):
+                    return line
+
+    except Exception:
+        pass
+    return ""
+
+
+def _local_title_from_text(text: str, module: str = "") -> str:
+    """
+    Locally derive a meaningful title from document text without sending data anywhere.
+
+    Strategy:
+    1. Look for lines that match known Oracle document title patterns
+       (e.g. "How To...", "Setting Up...", "Overview of...", "Configuring...")
+    2. Find the most content-rich short line in the top portion of the text
+    3. Fall back to extracting key noun phrases
+    """
+    if not text:
+        return ""
+
+    lines = [l.strip() for l in text.splitlines() if l.strip()]
+
+    # Pattern 1: lines that look like document titles (action/topic phrases)
+    title_patterns = re.compile(
+        r"^(how to|setting up|setup|configuring|overview of|introduction to|"
+        r"understanding|managing|implementing|using|working with|guide to|"
+        r"troubleshooting|best prac|frequently asked|faq|what is|"
+        r"creating|defining|processing|running|integrating|migrating)",
+        re.IGNORECASE
+    )
+
+    # Check first 20 lines for a title-like phrase
+    for line in lines[:20]:
+        if title_patterns.match(line) and _is_good_title(line):
+            return line
+
+    # Pattern 2: lines in Title Case or ALL CAPS that are descriptive
+    for line in lines[:15]:
+        if not _is_good_title(line):
+            continue
+        words = line.split()
+        if 3 <= len(words) <= 15:
+            # title case: most words start with uppercase
+            upper_ratio = sum(1 for w in words if w and w[0].isupper()) / len(words)
+            if upper_ratio >= 0.6:
+                return line
+
+    # Pattern 3: longest meaningful line in first 10 lines
+    candidates = [l for l in lines[:10] if _is_good_title(l) and 4 <= len(l.split()) <= 15]
+    if candidates:
+        return max(candidates, key=len)
+
+    return ""
+
+
+def extract_title(path: Path, module: str = "", version: str = "") -> str:
+    """
+    Extract the actual document title from content/metadata.
+    Priority order:
+      1. Claude API — reads first page, identifies or generates title
+      2. PDF largest-font heuristic / Word heading / Excel sheet name
+      3. Cleaned original filename
+    """
+    ext = path.suffix.lower()
+    title = ""
+
+    # Step 1: extract raw first-page text for Claude and heuristics
+    first_page = ""
+    try:
+        if ext == ".pdf" and HAS_PDF:
+            with pdfplumber.open(path) as pdf:
+                first_page = (pdf.pages[0].extract_text() or "") if pdf.pages else ""
+        elif ext in (".docx", ".doc") and HAS_DOCX:
+            doc = DocxDocument(path)
+            first_page = " ".join(p.text for p in doc.paragraphs[:20])
+        elif ext in (".xlsx", ".xls") and HAS_XLSX:
+            wb = openpyxl.load_workbook(path, read_only=True, data_only=True)
+            ws = wb.worksheets[0]
+            rows = []
+            for row in ws.iter_rows(max_row=5, values_only=True):
+                rows.append(" ".join(str(c) for c in row if c))
+            first_page = " ".join(rows)
+        elif ext in (".txt", ".sql"):
+            first_page = path.read_text(encoding="utf-8", errors="ignore")[:1000]
+    except Exception:
+        pass
+
+    # Step 2: smart local title analysis from first-page text
+    if first_page.strip():
+        title = _local_title_from_text(first_page, module)
+        if title:
+            return title
+
+    try:
+        if ext == ".pdf" and HAS_PDF:
+            title = _pdf_title_by_font(path)
+
+        elif ext in (".docx", ".doc") and HAS_DOCX:
+            doc = DocxDocument(path)
+            # try document properties title
+            meta_title = (doc.core_properties.title or "").strip()
+            if _is_good_title(meta_title):
+                title = meta_title
+            else:
+                # find first heading-style paragraph
+                for para in doc.paragraphs[:20]:
+                    if para.style and "heading" in para.style.name.lower() and _is_good_title(para.text):
+                        title = para.text.strip()
+                        break
+                # fallback: first good paragraph
+                if not title:
+                    for para in doc.paragraphs[:10]:
+                        if _is_good_title(para.text):
+                            title = para.text.strip()
+                            break
+
+        elif ext in (".xlsx", ".xls") and HAS_XLSX:
+            wb = openpyxl.load_workbook(path, read_only=True, data_only=True)
+            ws = wb.worksheets[0]
+            sheet_name = (ws.title or "").strip()
+            if _is_good_title(sheet_name):
+                title = sheet_name
+            else:
+                for row in ws.iter_rows(max_row=5, values_only=True):
+                    for cell in row:
+                        val = str(cell).strip() if cell else ""
+                        if _is_good_title(val):
+                            title = val
+                            break
+                    if title:
+                        break
+
+        elif ext in (".txt", ".sql"):
+            lines = path.read_text(encoding="utf-8", errors="ignore").splitlines()
+            for line in lines[:20]:
+                line = line.strip().lstrip("--#/*").strip()
+                if _is_good_title(line):
+                    title = line
+                    break
+
+    except Exception:
+        pass
+
+    # fallback: derive from original filename by stripping known prefixes/dates
+    if not title:
+        stem = path.stem
+        sep = r"[\s_]+"
+        all_modules = r"(?:AP_PO|P2P|O2C|R2R|GL|COA|CVR|SLA|AHCS|FAH|FA|Security|CST|PA|eTax|HMRC|FDI|FCCS|ARCS|PBCS)"
+        all_versions = r"(?:Fusion|R12|EPM|R11i|FDI)"
+        for _ in range(3):
+            stem = re.sub(r"^(?:OFC" + sep + r")?" + all_modules + sep + all_versions + sep, "", stem, flags=re.IGNORECASE)
+            stem = re.sub(r"^(?:OFC" + sep + r")?" + all_modules + sep, "", stem, flags=re.IGNORECASE)
+        stem = re.sub(r"[\s_]\d{4}[\s\-_]\d{2}[\s\-_]\d{2}(\s+\d+)?$", "", stem)
+        stem = re.sub(r"[\s_\-]+", " ", stem).strip()
+        title = stem
+
+    return title
+
 
 def extract_text(path: Path, max_chars: int = 3000) -> str:
     """Extract a sample of text from the file for classification."""
@@ -395,8 +633,10 @@ ABBREVIATIONS = [
 
 
 def _clean(value: str) -> str:
-    value = re.sub(r'[\\/:*?"<>|+\-_]', " ", value)  # remove unsafe + special chars
-    value = re.sub(r"\s+", " ", value.strip())          # collapse double spaces
+    value = re.sub(r'[\\/:*?"<>|+\-_]', " ", value)   # remove unsafe + special chars
+    value = re.sub(r'[–—•©®™€£¥°]', " ", value)        # remove special unicode chars
+    value = re.sub(r'[^\x20-\x7E]', " ", value)         # remove any remaining non-ASCII
+    value = re.sub(r"\s+", " ", value.strip())           # collapse double spaces
     return value
 
 
@@ -409,23 +649,21 @@ def _shorten(title: str) -> str:
 
 
 def _r2r_module_tag(haystack: str) -> str:
-    """For R2R files, detect the specific module tag to use in the filename."""
+    """For R2R files, detect the specific module tag: AHCS, GL, or Other."""
     h = haystack.lower()
     if any(re.search(k, h) for k in ["accounting hub", "ahcs", r"\bfah\b", "financial accounting hub"]):
         return "AHCS"
-    if any(re.search(k, h) for k in ["subledger accounting", r"\bsla\b", "subledger"]):
-        return "SLA"
-    if any(re.search(k, h) for k in ["cross validation", r"\bcvr\b"]):
-        return "CVR"
-    if any(re.search(k, h) for k in ["chart of accounts", r"\bcoa\b"]):
-        return "COA"
-    if any(re.search(k, h) for k in ["enterprise structure"]):
-        return "Ent Struct"
-    return "GL"  # default for R2R
+    if any(re.search(k, h) for k in ["general ledger", r"\bgl\b", "journal", "chart of accounts",
+                                      r"\bcoa\b", "cross validation", r"\bcvr\b",
+                                      "subledger", r"\bsla\b", "ledger setup",
+                                      "smartview", "essbase", "segment", "hierarchy"]):
+        return "GL"
+    return "Other"
 
 
 def build_filename(path: Path, top: str, sub: str, haystack: str = "") -> str:
-    """Build new filename: MODULE VERSION Title YYYY-MM-DD.ext, max 100 chars."""
+    """Build new filename: MODULE VERSION Title YYYY-MM-DD.ext, max 100 chars.
+    Title is extracted from document content/metadata — not derived from old filename."""
     ext = path.suffix.lower()
 
     # derive version tag
@@ -446,16 +684,9 @@ def build_filename(path: Path, top: str, sub: str, haystack: str = "") -> str:
     # file creation/modification date
     mtime = datetime.fromtimestamp(path.stat().st_mtime).strftime("%Y-%m-%d")
 
-    # strip previously applied prefixes so re-runs don't double up
-    stem = path.stem
-    # strip previously applied prefixes — handle both _ and space separators
-    sep = r"[\s_]+"
-    stem = re.sub(r"^(?:OFC" + sep + r")?(?:AP_PO|P2P|O2C|R2R|GL|FA|AHCS_FAH|AHCS|Security|CST|PA|eTax|HMRC)" + sep + r"(?:Fusion|R12|EPM|R11i)" + sep, "", stem, flags=re.IGNORECASE)
-    stem = re.sub(r"^(?:AP_PO|P2P|O2C|R2R|GL|FA|AHCS_FAH|AHCS|Security|CST|PA|eTax|HMRC)" + sep, "", stem, flags=re.IGNORECASE)
-    # strip trailing duplicate dates like _2024-01-01 or space-2024-01-01
-    stem = re.sub(r"[\s_]\d{4}[\s\-]\d{2}[\s\-]\d{2}$", "", stem)
-    stem = re.sub(r"[\s_]\d{4}-\d{2}-\d{2}$", "", stem)
-    title = _shorten(_clean(stem))
+    # extract title from document content — ignore old filename entirely
+    raw_title = extract_title(path, module=module_tag, version=version_tag)
+    title = _shorten(_clean(raw_title))
 
     # build full name and enforce 80-char limit on the title portion
     prefix = " ".join(p for p in [module_tag, version_tag] if p)
@@ -550,15 +781,18 @@ def process_inbox(root: Path, dry_run: bool):
             print(f"    [DUPLICATE] Already exists as: {existing.relative_to(root)}")
             log_lines.append(f"DUPLICATE: {rel}  ==  {existing.relative_to(root)}")
             if not dry_run:
-                dup_dir = root / "_Duplicates"
-                dup_dir.mkdir(exist_ok=True)
-                dup_dest = dup_dir / path.name
-                # avoid overwriting in _Duplicates
-                counter = 1
-                while dup_dest.exists():
-                    dup_dest = dup_dir / f"{path.stem} {counter}{path.suffix.lower()}"
-                    counter += 1
-                shutil.move(str(path), str(dup_dest))
+                try:
+                    dup_dir = root / "_Duplicates"
+                    dup_dir.mkdir(exist_ok=True)
+                    dup_dest = dup_dir / path.name
+                    counter = 1
+                    while dup_dest.exists():
+                        dup_dest = dup_dir / f"{path.stem} {counter}{path.suffix.lower()}"
+                        counter += 1
+                    shutil.move(str(path), str(dup_dest))
+                except PermissionError:
+                    print(f"    [SKIPPED] Duplicate locked (OneDrive syncing): {path.name}")
+                    log_lines.append(f"SKIPPED (locked duplicate): {rel}")
             continue
 
         print(f"    -> {top}/{sub}/{dest.name}")
