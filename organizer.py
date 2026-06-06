@@ -146,7 +146,10 @@ MODULE_KEYWORDS = [
       "gl period", "accounting period", "trial balance",
       "gl translation", "currency revaluation", "revaluation",
       "values and hierarchies", "segment values and hierarchies",
-      "gl values", "gl hierarchies"], None, "R2R"),
+      "gl values", "gl hierarchies",
+      "legal entity", "legal entities", "enterprise structure",
+      "business unit", "ledger set", "primary ledger",
+      "secondary ledger", "reporting currency"], None, "R2R"),
     (["user role", "responsibility", "access control", "profile option", "system admin",
       "roles and setup", "role setup", r"\brbac\b", "security setup",
       r"\broles\b", r"\busers\b", "user management", "user access",
@@ -743,7 +746,10 @@ def _r2r_module_tag(haystack: str) -> str:
                                       "value set", "flexfield", "account combination",
                                       "trial balance", "gl translation", "revaluation",
                                       "accounting period", "period close",
-                                      "values and hierarchies", "gl values", "gl hierarchies"]):
+                                      "values and hierarchies", "gl values", "gl hierarchies",
+                                      "legal entity", "legal entities", "enterprise structure",
+                                      "business unit", "ledger set", "primary ledger",
+                                      "secondary ledger", "reporting currency"]):
         return "GL"
     return "Other"
 
