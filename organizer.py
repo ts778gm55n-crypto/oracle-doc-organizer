@@ -132,12 +132,18 @@ MODULE_KEYWORDS = [
       "customer invoice", r"\bar\b"], None, "O2C"),
     # R2R — Record to Report: GL, COA, CVR, Enterprise Structure, AHCS, FAH, SLA
     (["general ledger", r"\bgl\b", "chart of accounts", r"\bcoa\b",
-      "journal entry", "journal import", "journal line",
-      "cross validation", r"\bcvr\b", "segment value",
+      "coa hierarchy", "coa hierarchies", "gl hierarchy", "gl hierarchies",
+      "gl smartview", "smartview gl", "smartview connection",
+      "journal entry", "journal import", "journal line", "journal approval",
+      "journal reversal", "journal balance",
+      "cross validation", r"\bcvr\b", "segment value", "segment security",
+      "value set", "flexfield", "account combination",
       "enterprise structure", "ledger setup", "ledger config",
       "accounting hub", "ahcs", "fah", "financial accounting hub",
       "subledger accounting", r"\bsla\b", "subledger", "record to report",
-      r"\br2r\b", "period close", "intercompany", "consolidat"], None, "R2R"),
+      r"\br2r\b", "period close", "intercompany", "consolidat",
+      "gl period", "accounting period", "trial balance",
+      "gl translation", "currency revaluation", "revaluation"], None, "R2R"),
     (["user role", "responsibility", "access control", "profile option", "system admin",
       "roles and setup", "role setup", r"\brbac\b", "security setup"], None, "Security"),
     (["cost management", "costing", "inventory valuation", "cost accounting",
@@ -724,9 +730,13 @@ def _r2r_module_tag(haystack: str) -> str:
     if any(re.search(k, h) for k in ["accounting hub", "ahcs", r"\bfah\b", "financial accounting hub"]):
         return "AHCS"
     if any(re.search(k, h) for k in ["general ledger", r"\bgl\b", "journal", "chart of accounts",
-                                      r"\bcoa\b", "cross validation", r"\bcvr\b",
+                                      r"\bcoa\b", "coa hierarch", "gl hierarch", "gl smartview",
+                                      "smartview gl", "cross validation", r"\bcvr\b",
                                       "subledger", r"\bsla\b", "ledger setup",
-                                      "smartview", "essbase", "segment", "hierarchy"]):
+                                      "smartview", "essbase", "segment", "hierarchy",
+                                      "value set", "flexfield", "account combination",
+                                      "trial balance", "gl translation", "revaluation",
+                                      "accounting period", "period close"]):
         return "GL"
     return "Other"
 
