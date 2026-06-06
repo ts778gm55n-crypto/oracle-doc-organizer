@@ -85,7 +85,10 @@ MODULE_KEYWORDS = [
     # FDI — Oracle Fusion Data Intelligence (must come before ERP/EPM rules)
     (["fusion data intelligence", r"\bfdi\b", "data intelligence platform",
       "fdr tables", "semantic model lineage", "metric calculation logic",
-      "data augmentation scripts", "fusion analytics"], "FDI", None),
+      "data augmentation scripts", "fusion analytics",
+      "fusion.*analytics", "analytics.*business.*questions",
+      "analytics.*diagrams", "analytics.*subject.*areas",
+      "analytics.*tables"], "FDI", None),
 
     # EPM products
     (["fccs", "financial consolidation", "close cloud"], "EPM", "FCCS"),
@@ -154,7 +157,9 @@ VERSION_KEYWORDS = {
 }
 
 SQL_EXTENSIONS  = {".sql"}
-DOC_EXTENSIONS  = {".pdf", ".docx", ".doc", ".txt", ".rtf", ".xlsx", ".xls"}
+DOC_EXTENSIONS  = {".pdf", ".docx", ".doc", ".txt", ".rtf", ".xlsx", ".xls",
+                   ".csv", ".ppt", ".pptx", ".msg", ".eml", ".zip", ".7z",
+                   ".rar", ".gz", ".xml", ".json", ".html", ".htm"}
 ALL_EXTENSIONS  = SQL_EXTENSIONS | DOC_EXTENSIONS
 
 
@@ -430,8 +435,12 @@ def extract_text(path: Path, max_chars: int = 3000) -> str:
             raw = path.read_bytes().decode("utf-8", errors="ignore")
             return rtf_to_text(raw)[:max_chars]
 
-        if ext in (".txt", ".sql"):
+        if ext in (".txt", ".sql", ".csv", ".xml", ".json", ".html", ".htm"):
             return path.read_text(encoding="utf-8", errors="ignore")[:max_chars]
+
+        # zip/archive files — classify by filename only, no content extraction
+        if ext in (".zip", ".7z", ".rar", ".gz"):
+            return ""
 
     except Exception as e:
         logging.warning(f"Could not extract text from {path.name}: {e}")
@@ -440,6 +449,32 @@ def extract_text(path: Path, max_chars: int = 3000) -> str:
 
 
 # ── classification ────────────────────────────────────────────────────────────
+
+# User guide keywords — docs that are official Oracle guides/manuals
+_USER_GUIDE_PATTERNS = re.compile(
+    r"(user guide|user's guide|implementation guide|admin guide|"
+    r"administering oracle|using oracle|getting started|setup guide|"
+    r"configuration guide|installation guide|developer guide|"
+    r"reference guide|api guide|security guide|upgrade guide|"
+    r"migration guide|release guide|whats new|what's new|"
+    r"new features|release notes|patch notes)",
+    re.IGNORECASE
+)
+
+# Oracle Fusion release codes: 25A, 25B, 25C, 26A, 26B, 26C, 24D etc.
+_RELEASE_PATTERN = re.compile(r"\b(2[3-9][A-D])\b", re.IGNORECASE)
+
+
+def detect_release(text: str) -> str | None:
+    """Detect Oracle Fusion release code (e.g. 25A, 26A) from text."""
+    match = _RELEASE_PATTERN.search(text)
+    return match.group(1).upper() if match else None
+
+
+def is_user_guide(haystack: str) -> bool:
+    """Return True if the document appears to be an Oracle user/admin guide."""
+    return bool(_USER_GUIDE_PATTERNS.search(haystack))
+
 
 def detect_version(text: str) -> str | None:
     tl = text.lower()
@@ -488,8 +523,17 @@ def classify(path: Path, content: str) -> tuple[str, str]:
         elif any(re.search(k, haystack) for k in o2c_tax):
             module = "O2C"
 
-    # FDI — detect subfolder from filename/content
+    # FDI — detect subfolder from filename/content (check filename first for zip files)
     if top_hint == "FDI":
+        fname = path.stem.lower()
+        if re.search(r"_hcm_|hcm analytics|\bhcm\b", fname):
+            return "FDI", "HCM"
+        if re.search(r"_cx_|cx analytics|\bcx\b", fname):
+            return "FDI", "CX"
+        if re.search(r"_scm_|scm analytics|\bscm\b", fname):
+            return "FDI", "SCM"
+        if re.search(r"_erp_|erp analytics|\berp\b", fname):
+            return "FDI", "ERP"
         if re.search(r"\b(erp|fin|gl|ap|ar|p2p|r2r)\b", haystack):
             return "FDI", "ERP"
         if re.search(r"\b(hcm|hr|workforce|payroll)\b", haystack):
@@ -510,18 +554,30 @@ def classify(path: Path, content: str) -> tuple[str, str]:
     if module == "R2R":
         r2r_sub = _r2r_module_tag(haystack)
         sub_path = f"R2R/{r2r_sub}"
+        if is_user_guide(haystack):
+            release = detect_release(path.stem + " " + content)
+            release_folder = release if release else "General"
+            sub_path = f"R2R/{r2r_sub}/User Guides/{release_folder}"
         if version == "R12" or version == "R11i":
             return "R12_ERP", sub_path
         return "Fusion_Cloud_ERP", sub_path
 
+    # ERP modules — check for user guides before routing by version
+    def _route_with_guide(top: str, mod: str) -> tuple[str, str]:
+        if is_user_guide(haystack):
+            release = detect_release(path.stem + " " + content)
+            release_folder = release if release else "General"
+            return top, f"{mod}/User Guides/{release_folder}"
+        return top, mod
+
     # ERP modules — route by version
     if version == "R12" or version == "R11i":
-        return "R12_ERP", module
+        return _route_with_guide("R12_ERP", module)
     if version == "Fusion" or version == "EPM":
-        return "Fusion_Cloud_ERP", module
+        return _route_with_guide("Fusion_Cloud_ERP", module)
 
     # version unclear — default to Fusion_Cloud_ERP rather than losing the file
-    return "Fusion_Cloud_ERP", module
+    return _route_with_guide("Fusion_Cloud_ERP", module)
 
 
 # ── naming ────────────────────────────────────────────────────────────────────
@@ -707,7 +763,14 @@ def build_filename(path: Path, top: str, sub: str, haystack: str = "") -> str:
     if len(title) > max_title:
         title = title[:max_title].rsplit(" ", 1)[0]  # trim at word boundary
 
-    parts = [p for p in [module_tag, version_tag, title, mtime] if p]
+    # detect release code for user guides and prepend to filename
+    release_prefix = ""
+    if "User Guides" in sub:
+        release = detect_release(path.stem)
+        if release:
+            release_prefix = release
+
+    parts = [p for p in [release_prefix, module_tag, version_tag, title, mtime] if p]
     return " ".join(parts) + ext
 
 
