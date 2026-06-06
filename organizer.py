@@ -128,7 +128,8 @@ MODULE_KEYWORDS = [
       "external bank", "payments overview", "cash mgt", "automatic reconciliation",
       "roles.*po", "setups.*po", "enterprise structure.*erp", "erp.*enterprise structure",
       "self service receipt", "selfservice receipt", "self-service receipt",
-      r"\bsuppliers?\b"], None, "P2P"),
+      r"\bsuppliers?\b", r"\bocr\b", "optical character recognition",
+      "invoice imaging", "integrated imaging"], None, "P2P"),
     # O2C — Order to Cash: AR, Order Entry, Order Management, Cash receipts
     (["accounts receivable", "order to cash", r"\bo2c\b", "order entry",
       "order management", "customer receipt", "cash receipt",
