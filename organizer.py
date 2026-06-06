@@ -822,12 +822,24 @@ def process_inbox(root: Path, dry_run: bool):
         _delete_empty_dirs(inbox)
         print(f"\nEmpty inbox subfolders removed.")
 
-    # write log
-    log_path = root / f"organizer_log_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
-    summary  = "\n".join(log_lines)
+    # write log to _Logs folder
+    logs_dir = root / "_Logs"
     if not dry_run:
+        logs_dir.mkdir(exist_ok=True)
+        log_path = logs_dir / f"organizer_log_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
+        summary  = "\n".join(log_lines)
         log_path.write_text(summary, encoding="utf-8")
-        print(f"\nLog saved to {log_path.name}")
+        print(f"\nLog saved to _Logs/{log_path.name}")
+
+        # delete logs older than 1 month
+        cutoff = datetime.now().timestamp() - (30 * 24 * 60 * 60)
+        deleted = 0
+        for old_log in logs_dir.glob("organizer_log_*.txt"):
+            if old_log.stat().st_mtime < cutoff:
+                old_log.unlink()
+                deleted += 1
+        if deleted:
+            print(f"Deleted {deleted} log(s) older than 30 days.")
     else:
         print(f"\nDry run complete -- no files moved.")
 
@@ -842,6 +854,7 @@ def setup_folders(root: Path):
         for sub in subs:
             (root / top / sub).mkdir(parents=True, exist_ok=True)
     (root / "_Inbox").mkdir(exist_ok=True)
+    (root / "_Logs").mkdir(exist_ok=True)
     print(f"Folder structure ready at: {root}")
 
 
