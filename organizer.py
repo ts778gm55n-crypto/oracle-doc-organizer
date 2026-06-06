@@ -465,7 +465,7 @@ _USER_GUIDE_PATTERNS = re.compile(
 _RELEASE_PATTERN = re.compile(r"\b(2[3-9][A-D])\b", re.IGNORECASE)
 
 
-def detect_release(text: str) -> str | None:
+def detect_release(text: str) :
     """Detect Oracle Fusion release code (e.g. 25A, 26A) from text."""
     match = _RELEASE_PATTERN.search(text)
     return match.group(1).upper() if match else None
@@ -476,7 +476,7 @@ def is_user_guide(haystack: str) -> bool:
     return bool(_USER_GUIDE_PATTERNS.search(haystack))
 
 
-def detect_version(text: str) -> str | None:
+def detect_version(text: str) :
     tl = text.lower()
     for version, keywords in VERSION_KEYWORDS.items():
         for kw in keywords:
@@ -485,7 +485,7 @@ def detect_version(text: str) -> str | None:
     return None
 
 
-def classify(path: Path, content: str) -> tuple[str, str]:
+def classify(path: Path, content: str) :
     """
     Return (top_folder, sub_folder).
     SQL files always go to Other/Data_Models.
@@ -563,7 +563,7 @@ def classify(path: Path, content: str) -> tuple[str, str]:
         return "Fusion_Cloud_ERP", sub_path
 
     # ERP modules — check for user guides before routing by version
-    def _route_with_guide(top: str, mod: str) -> tuple[str, str]:
+    def _route_with_guide(top: str, mod: str) :
         if is_user_guide(haystack):
             release = detect_release(path.stem + " " + content)
             release_folder = release if release else "General"
