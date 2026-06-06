@@ -823,7 +823,12 @@ def build_filename(path: Path, top: str, sub: str, haystack: str = "") -> str:
         if release:
             release_prefix = release
 
-    parts = [p for p in [release_prefix, module_tag, version_tag, title, mtime] if p]
+    # don't add module/version prefix if title already starts with it
+    prefix_str = " ".join(p for p in [module_tag, version_tag] if p).lower()
+    if prefix_str and title.lower().startswith(prefix_str):
+        parts = [p for p in [release_prefix, title, mtime] if p]
+    else:
+        parts = [p for p in [release_prefix, module_tag, version_tag, title, mtime] if p]
     return " ".join(parts) + ext
 
 
