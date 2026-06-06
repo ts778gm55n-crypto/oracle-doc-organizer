@@ -506,6 +506,14 @@ def classify(path: Path, content: str) -> tuple[str, str]:
     if top_hint == "EPM":
         return "EPM", module
 
+    # R2R — split into AHCS, GL, Other subfolders
+    if module == "R2R":
+        r2r_sub = _r2r_module_tag(haystack)
+        sub_path = f"R2R/{r2r_sub}"
+        if version == "R12" or version == "R11i":
+            return "R12_ERP", sub_path
+        return "Fusion_Cloud_ERP", sub_path
+
     # ERP modules — route by version
     if version == "R12" or version == "R11i":
         return "R12_ERP", module
@@ -675,9 +683,11 @@ def build_filename(path: Path, top: str, sub: str, haystack: str = "") -> str:
         "Other":            "",
     }.get(top, "")
 
-    # R2R files get a specific module tag (GL, AHCS, COA etc.) not just "R2R"
-    if sub == "R2R":
-        module_tag = _r2r_module_tag(haystack or path.stem)
+    # R2R subfolders — use just the last part as the module tag (AHCS, GL, Other)
+    if "/" in sub:
+        module_tag = sub.split("/")[-1]
+        if module_tag == "Other":
+            module_tag = "R2R"
     else:
         module_tag = sub if sub not in ("Other", "Data_Models") else ""
 
