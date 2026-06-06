@@ -746,10 +746,15 @@ def _shorten(title: str) -> str:
 
 
 def _r2r_module_tag(haystack: str) -> str:
-    """For R2R files, detect the specific module tag: AHCS, GL, or Other."""
+    """For R2R files, detect the specific module tag: AHCS, GL, Approvals, or Other."""
     h = haystack.lower()
     if any(re.search(k, h) for k in ["accounting hub", "ahcs", r"\bfah\b", "financial accounting hub"]):
         return "AHCS"
+    if any(re.search(k, h) for k in ["journal approval", "journal approv", "gl approval",
+                                      "journal workflow", "approval workflow.*journal",
+                                      "journal.*approval rules", "approval rules.*journal",
+                                      "bpm.*journal", "journal.*bpm"]):
+        return "Approvals"
     if any(re.search(k, h) for k in ["general ledger", r"\bgl\b", "journal", "chart of accounts",
                                       r"\bcoa\b", "coa hierarch", "gl hierarch", "gl smartview",
                                       "smartview gl", "cross validation", r"\bcvr\b",
