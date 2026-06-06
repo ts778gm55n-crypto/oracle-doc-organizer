@@ -125,13 +125,14 @@ MODULE_KEYWORDS = [
       "cash management", "bank reconciliation", "bank statement", "bank account",
       "external bank", "payments overview", "cash mgt", "automatic reconciliation",
       "roles.*po", "setups.*po", "enterprise structure.*erp", "erp.*enterprise structure",
-      "self service receipt", "selfservice receipt", "self-service receipt"], None, "P2P"),
+      "self service receipt", "selfservice receipt", "self-service receipt",
+      r"\bsuppliers?\b"], None, "P2P"),
     # O2C — Order to Cash: AR, Order Entry, Order Management, Cash receipts
     (["accounts receivable", "order to cash", r"\bo2c\b", "order entry",
       "order management", "customer receipt", "cash receipt",
       "customer payment", "credit management", "collections",
       "customer invoice", "autoinvoice", "auto invoice",
-      "revenue recognition", "billing", r"\bar\b"], None, "O2C"),
+      "revenue recognition", "billing", r"\bcustomers?\b", r"\bar\b"], None, "O2C"),
     # R2R — Record to Report: GL, COA, CVR, Enterprise Structure, AHCS, FAH, SLA
     (["general ledger", r"\bgl\b", "chart of accounts", r"\bcoa\b",
       "coa hierarchy", "coa hierarchies", "gl hierarchy", "gl hierarchies",
