@@ -802,14 +802,27 @@ def _file_hash(path: Path) -> str:
 
 
 def _build_hash_index(root: Path, inbox: Path) -> dict:
-    """Build a hash → path index of all files already in the destination folders."""
+    """Build a hash → path index of all files already in the destination folders.
+    Excludes inbox and Other/Unclassified so those files are always re-evaluated."""
+    unclassified = str(root / "Other" / "Unclassified")
+    duplicates = str(root / "_Duplicates")
     index = {}
     for path in root.rglob("*"):
-        if path.is_file() and str(inbox) not in str(path) and path.suffix.lower() != ".txt":
-            try:
-                index[_file_hash(path)] = path
-            except Exception:
-                pass
+        if not path.is_file():
+            continue
+        path_str = str(path)
+        if str(inbox) in path_str:
+            continue
+        if unclassified in path_str:
+            continue
+        if duplicates in path_str:
+            continue
+        if path.suffix.lower() == ".txt":
+            continue
+        try:
+            index[_file_hash(path)] = path
+        except Exception:
+            pass
     return index
 
 
