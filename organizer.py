@@ -129,7 +129,8 @@ MODULE_KEYWORDS = [
     (["accounts receivable", "order to cash", r"\bo2c\b", "order entry",
       "order management", "customer receipt", "cash receipt",
       "customer payment", "credit management", "collections",
-      "customer invoice", r"\bar\b"], None, "O2C"),
+      "customer invoice", "autoinvoice", "auto invoice",
+      "revenue recognition", "billing", r"\bar\b"], None, "O2C"),
     # R2R — Record to Report: GL, COA, CVR, Enterprise Structure, AHCS, FAH, SLA
     (["general ledger", r"\bgl\b", "chart of accounts", r"\bcoa\b",
       "coa hierarchy", "coa hierarchies", "gl hierarchy", "gl hierarchies",
