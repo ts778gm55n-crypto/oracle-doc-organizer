@@ -162,7 +162,9 @@ MODULE_KEYWORDS = [
       "inventory", "stock", "item cost", "material cost"], None, "CST"),
     (["project accounting", "project costing", "project billing", "project planning",
       "project financ", "project perf", "project revenue", "ppm office",
-      "projectcost", "projectrev", "projectperf", "optimize.*project"], None, "PA"),
+      "projectcost", "projectrev", "projectperf", "optimize.*project",
+      r"\bppm\b", "project portfolio", "project management",
+      "project execution", "project contract"], None, "PA"),
     (["fixed assets", "asset management", "depreciation", "asset book"], None, "FA"),
     # BIP Reports — BI, OTBI, BIP docs not tied to a specific module
     (["business intelligence", r"\bbip\b", r"\botbi\b", "bi report", "bi publisher",
