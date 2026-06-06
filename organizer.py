@@ -71,6 +71,8 @@ except ImportError:
 
 STRUCTURE = {
     "EPM":             ["FCCS", "ARCS", "PBCS", "Free_Form", "Other"],
+    "R11i_ERP":        ["P2P", "O2C", "R2R", "Security",
+                        "CST", "PA", "FA", "eTax", "HMRC", "BIP_Reports", "Other"],
     "R12_ERP":         ["P2P", "O2C", "R2R", "Security",
                         "CST", "PA", "FA", "eTax", "HMRC", "BIP_Reports", "Other"],
     "Fusion_Cloud_ERP":["P2P", "O2C", "R2R", "Security",
@@ -585,7 +587,9 @@ def classify(path: Path, content: str) :
             release = detect_release(path.stem + " " + content)
             release_folder = release if release else "General"
             sub_path = f"R2R/{r2r_sub}/User Guides/{release_folder}"
-        if version == "R12" or version == "R11i":
+        if version == "R11i":
+            return "R11i_ERP", sub_path
+        if version == "R12":
             return "R12_ERP", sub_path
         return "Fusion_Cloud_ERP", sub_path
 
@@ -598,7 +602,9 @@ def classify(path: Path, content: str) :
         return top, mod
 
     # ERP modules — route by version
-    if version == "R12" or version == "R11i":
+    if version == "R11i":
+        return _route_with_guide("R11i_ERP", module)
+    if version == "R12":
         return _route_with_guide("R12_ERP", module)
     if version == "Fusion" or version == "EPM":
         return _route_with_guide("Fusion_Cloud_ERP", module)
@@ -767,6 +773,7 @@ def build_filename(path: Path, top: str, sub: str, haystack: str = "") -> str:
 
     # derive version tag
     version_tag = {
+        "R11i_ERP":         "R11i",
         "R12_ERP":          "R12",
         "Fusion_Cloud_ERP": "Fusion",
         "EPM":              "EPM",
